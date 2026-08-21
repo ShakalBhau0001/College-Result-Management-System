@@ -1,13 +1,13 @@
-import re
-import pandas as pd
-import streamlit as st
 from io import BytesIO
+
+import streamlit as st
 from openpyxl import Workbook
 from openpyxl.styles import Font
 
+from pages.utils import parse_total_marks
+
 
 def load_data(path):
-    """Loading data from session state"""
     return st.session_state.stored_data.get(path, [])
 
 
@@ -22,71 +22,51 @@ def create_excel_sheet():
         ws = wb.active
         ws.title = "Student Results"
         all_codes = []
-        for code in data2[0]["Code"]:
-            if isinstance(code, str):
-                all_codes.append(code)
+        seen = set()
+        for student in data2:
+            for code in student.get("Code", []):
+                if isinstance(code, str) and code not in seen:
+                    seen.add(code)
+                    all_codes.append(code)
 
         header = ["Seat No", "Name"]
         for code in all_codes:
             header.extend([code, "UA", "CA", "Total", "Subject_Status"])
-        header.extend(["", "Total", "Status", "Percentage"])
+        header.extend(["Total Marks", "Status", "Percentage"])
         ws.append(header)
 
         for cell in ws[1]:
             cell.font = Font(bold=True)
 
-        code_indices = {i: code for i, code in enumerate(all_codes)}
-
-        for student in data2[:]:
-            row = [student["Seat No"], student["Name"]]
-            seen_indices = set()
-            total_val = 0
-            status = ""
-
-            if "F" in student.get("Status1", [])[:16]:
-                status = "Fail"
-            else:
-                status = "Pass"
-
-            for val in student["Total"][:9]:
-                if val in ("AB", "-", "*"):
+        for student in data2:
+            row = [student.get("Seat No", ""), student.get("Name", "")]
+            codes = student.get("Code", [])
+            ua_list = student.get("UA", [])
+            ca_list = student.get("CA", [])
+            total_list = student.get("Total", [])
+            status_list = student.get("Status1", [])
+            lookup = {}
+            for i, code in enumerate(codes):
+                if not isinstance(code, str):
                     continue
-                elif "*" in val:
-                    parts = val.split()
-                    if len(parts) == 2 and parts[1].isdigit():
-                        total_val += int(parts[1])
-                elif "$" in val and "+" in val:
-                    match = re.search(r"\$?\s*(\d+)\s*\+\s*(\d+)", val)
-                    if match:
-                        total_val += int(match.group(1)) + int(match.group(2))
-                elif val.isdigit():
-                    total_val += int(val)
+                lookup[code] = (
+                    ua_list[i] if i < len(ua_list) else "",
+                    ca_list[i] if i < len(ca_list) else "",
+                    total_list[i] if i < len(total_list) else "",
+                    status_list[i] if i < len(status_list) else "",
+                )
 
-            percentage = f"{(total_val / 900) * 100:.2f}"
-
+            total_val = sum(parse_total_marks(v) for v in total_list[:9])
+            status = "Fail" if "F" in status_list[:16] else "Pass"
             for code in all_codes:
-                if code in code_indices.values():
-                    item = [
-                        k
-                        for k, v in code_indices.items()
-                        if v == code and k not in seen_indices
-                    ]
-                    if item:
-                        i = item[0]
-                        seen_indices.add(i)
-                        row.extend(
-                            [
-                                "",
-                                student["UA"][i],
-                                student["CA"][i],
-                                student["Total"][i],
-                                student["Status1"][i],
-                            ]
-                        )
+                if code in lookup:
+                    ua, ca, total, subj_status = lookup[code]
+                    row.extend(["", ua, ca, total, subj_status])
                 else:
                     row.extend(["", "", "", "", ""])
 
-            row.extend(["", total_val, status, percentage])
+            percentage = f"{(total_val / 900) * 100:.2f}" if total_list else "0.00"
+            row.extend([total_val, status, percentage])
             ws.append(row)
             current_row = ws.max_row
             ws[f"A{current_row}"].font = Font(bold=True)
