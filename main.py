@@ -1,10 +1,10 @@
 import os
 import sys
 import traceback
-import streamlit as st
 from datetime import datetime, timedelta
 
-# Set page config with white background
+import streamlit as st
+
 st.set_page_config(
     page_title="College Result Manager",
     page_icon="📊",
@@ -14,18 +14,15 @@ st.set_page_config(
 
 MAINTENANCE_MODE = False
 
-# Initialization of session stating for data storage
 if "stored_data" not in st.session_state:
     st.session_state.stored_data = {}
 
 
 def save_data(path, info):
-    """Saving data to session state"""
     st.session_state.stored_data[path] = info
 
 
 def load_data(path):
-    """Loading data from session state"""
     return st.session_state.stored_data.get(path, [])
 
 
@@ -54,10 +51,7 @@ def show_maintenance_page():
         unsafe_allow_html=True,
     )
 
-    # Set maintenance end time
     maintenance_end = datetime.now() + timedelta(hours=2)
-
-    # Displaying static countdown
     time_left = maintenance_end - datetime.now()
     hours, remainder = divmod(time_left.seconds, 3600)
     minutes, seconds = divmod(remainder, 60)
@@ -77,32 +71,29 @@ def show_maintenance_page():
 
 def show_main_app():
     try:
-        # Trying to import page modules
         try:
-            # Adding the pages directory to Python path
             pages_dir = os.path.join(os.path.dirname(__file__), "pages")
             if pages_dir not in sys.path:
                 sys.path.append(pages_dir)
 
             # Importing all page modules
             from pages import (
-                upload_pdf,
                 dashboard,
-                top_students,
                 division_analysis,
-                pass_fail_analysis,
-                subject_analysis,
-                student_search,
                 excel_report,
+                pass_fail_analysis,
+                student_search,
+                subject_analysis,
+                top_students,
+                upload_pdf,
             )
         except ImportError as e:
-            st.error(f"Error importing page modules: {str(e)}")
+            st.error(f"Error importing page modules: {e!s}")
             st.info("Please make sure all page files exist in the 'pages' directory")
             return
 
         st.title("🎓 College Result Management System")
         st.markdown("---")
-
         st.sidebar.title("Navigation")
         menu_options = [
             "Upload PDF",
@@ -134,8 +125,8 @@ def show_main_app():
                 student_search.show()
             elif choice == "Generate Excel Report":
                 excel_report.show()
-        except Exception as e:
-            st.error(f"Error in {choice} page: {str(e)}")
+        except Exception as e:  # noqa: BLE001
+            st.error(f"Error in {choice} page: {e!s}")
             st.code(traceback.format_exc())
 
         st.markdown("---")
@@ -148,7 +139,7 @@ def show_main_app():
             unsafe_allow_html=True,
         )
 
-    except Exception:
+    except Exception:  # noqa: BLE001
         st.error("A critical error occurred in the application")
         st.code(traceback.format_exc())
 
