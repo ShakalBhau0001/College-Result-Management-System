@@ -1,12 +1,14 @@
+from io import BytesIO
+
+import matplotlib.pyplot as plt
 import pandas as pd
 import streamlit as st
-import matplotlib.pyplot as plt
-from fpdf import FPDF
-from io import BytesIO
+from fpdf.fpdf import FPDF
+
+from pages.utils import safe_float
 
 
 def load_data(path):
-    """Loading data from session state"""
     return st.session_state.stored_data.get(path, [])
 
 
@@ -29,13 +31,16 @@ def create_division_pdf(div_list, div_name, min_pct, max_pct):
     pdf.set_fill_color(255, 255, 255)
     for idx, student in enumerate(div_list, 1):
         pdf.cell(15, 10, str(idx), 1, 0, "C")
-        pdf.cell(30, 10, student["Seat No"], 1, 0, "C")
-        pdf.cell(80, 10, student["Name"][:35], 1, 0, "L")
-        pdf.cell(30, 10, student["Percentage"], 1, 0, "C")
-        pdf.cell(30, 10, student["Status"], 1, 1, "C")
+        pdf.cell(30, 10, str(student.get("Seat No", "")), 1, 0, "C")
+        pdf.cell(80, 10, str(student.get("Name", ""))[:35], 1, 0, "L")
+        pdf.cell(30, 10, str(student.get("Percentage", "")), 1, 0, "C")
+        pdf.cell(30, 10, str(student.get("Status", "")), 1, 1, "C")
 
     pdf_bytes = BytesIO()
-    pdf_bytes.write(pdf.output(dest="S").encode("latin1"))
+    raw_output = pdf.output(dest="S")
+    if isinstance(raw_output, str):
+        raw_output = raw_output.encode("latin1")
+    pdf_bytes.write(bytes(raw_output))
     pdf_bytes.seek(0)
     return pdf_bytes
 
@@ -48,7 +53,7 @@ def division_analysis(data):
         return
 
     # Calculating max percentage of the dataset
-    max_percentage = max(float(d["Percentage"]) for d in data) if data else 100
+    max_percentage = max(safe_float(d.get("Percentage")) for d in data) if data else 100
 
     # Displaying student count statistics before analysis
     st.subheader("Overall Statistics")
@@ -57,7 +62,7 @@ def division_analysis(data):
     col2.metric("Highest Percentage", f"{max_percentage:.2f}%")
 
     # Get count of failed students
-    failed_count = len([d for d in data if d["Status"] in ["ATKT", "Fail"]])
+    failed_count = len([d for d in data if d.get("Status") in ["ATKT", "Fail"]])
     col3.metric("Failed Students", failed_count)
 
     # Custom range selection for division analysis
@@ -83,11 +88,11 @@ def division_analysis(data):
         div_list = [
             d
             for d in data
-            if min_pct <= float(d["Percentage"]) <= max_pct
-            and d["Status"] in status_filter
+            if min_pct <= safe_float(d.get("Percentage")) <= max_pct
+            and d.get("Status") in status_filter
         ]
 
-        div_list.sort(key=lambda x: x["Name"])
+        div_list.sort(key=lambda x: x.get("Name", ""))
         st.subheader(f"Students between {min_pct}% and {max_pct}%")
         st.write(f"Found {len(div_list)} students matching criteria")
 
