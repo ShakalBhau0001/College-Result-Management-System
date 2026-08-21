@@ -1,12 +1,13 @@
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import streamlit as st
-import matplotlib.pyplot as plt
 from scipy.stats import gaussian_kde
+
+from pages.utils import safe_float, status_color_list
 
 
 def load_data(path):
-    """Loading data from session state"""
     return st.session_state.stored_data.get(path, [])
 
 
@@ -17,9 +18,12 @@ def performance_dashboard(data):
         st.warning("No data available. Please upload and process a PDF first.")
         return
 
-    # Converting to DataFrame
     df = pd.DataFrame(data)
-    df["Percentage"] = df["Percentage"].astype(float)
+    df["Percentage"] = df["Percentage"].apply(safe_float)
+
+    if df.empty:
+        st.warning("No valid student records to display.")
+        return
 
     # Calculating statistics
     avg_percentage = df["Percentage"].mean()
@@ -46,10 +50,13 @@ def performance_dashboard(data):
             alpha=0.7,
         )
 
-        # Adding KDE
-        kde = gaussian_kde(df["Percentage"])
-        x = np.linspace(df["Percentage"].min(), df["Percentage"].max(), 200)
-        ax.plot(x, kde(x), color="darkblue", linewidth=2)
+        if df["Percentage"].nunique() > 1:
+            try:
+                kde = gaussian_kde(df["Percentage"])
+                x = np.linspace(df["Percentage"].min(), df["Percentage"].max(), 200)
+                ax.plot(x, kde(x), color="darkblue", linewidth=2)
+            except Exception:
+                pass
         ax.set_xlabel("Percentage")
         ax.set_ylabel("Density")
         ax.set_title("Percentage Distribution with Density Curve")
@@ -60,13 +67,12 @@ def performance_dashboard(data):
         # Status distribution
         status_counts = df["Status"].value_counts()
         fig, ax = plt.subplots(figsize=(6, 6))
-        colors = ["#4CAF50", "#FFC107", "#F44336"]  # Green, Amber, Red
         ax.pie(
             status_counts,
             labels=status_counts.index,
             autopct="%1.1f%%",
             startangle=90,
-            colors=colors[: len(status_counts)],
+            colors=status_color_list(status_counts.index),
             wedgeprops={"linewidth": 1, "edgecolor": "white"},
             textprops={"fontsize": 10},
         )
